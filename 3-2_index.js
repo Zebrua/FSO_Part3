@@ -40,7 +40,7 @@ app.get('/info', (request,response) => {
         ${new Date()}</p>`)
 })
 
-const PORT = 3005
+const PORT = 3001
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })

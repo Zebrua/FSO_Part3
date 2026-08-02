@@ -34,7 +34,7 @@ app.get('/api/persons', (request, response) => {
   response.json(phonebook)
 })
 
-const PORT = 3005
+const PORT = 3001
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })

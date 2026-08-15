@@ -1,55 +1,75 @@
 const express = require('express')
-const dotenv = require('dotenv')
 const app = express()
+const cors = require("cors")
+const http = require("http")
+const dotenv = require('dotenv')
 dotenv.config()
-
-const morgan = require('morgan')
-const cors = require('cors')
 const mongoose = require('mongoose')
-
 const url = process.env.MONGODB_URI
-
 mongoose.set('strictQuery',false)
-mongoose.connect(url)
-const personSchema = new mongoose.Schema({
+
+const allowedOrigins = ["http://localhost:5173","https://back-end-general-project.fly.dev","http://localhost:3001"]
+
+const corsOptions = {
+  origin: allowedOrigins,
+  methods: ["GET","POST","OPTIONS","DELETE","PUT"],
+  credentials: true
+}
+
+app.use(express.static('dist'))
+app.use(express.json())
+
+const numberSchema = new mongoose.Schema({
     name: String,
-    number: String,
+    number: String
 })
-personSchema.set('toJSON', {
+
+numberSchema.set('toJSON', {
     transform: (document, returnedObject) => {
       returnedObject.id = returnedObject._id.toString()
       delete returnedObject._id
       delete returnedObject.__v
     }
 })
-const Phonenumber = mongoose.model('Phonenumber', personSchema)
 
-morgan.token('data', function getData (req) {
-    const body = req.body
-    return JSON.stringify(body)
-})
-
-app.use(express.static('dist'))
-app.use(cors())
-app.use(morgan(':method :url :status :res[content-length] - :response-time ms :data'))
-app.use(express.json())
-
-// const baseURL ='/api/persons';
+const Number = mongoose.model('Number', numberSchema)
 
 app.get('/hello', (request, response) => {
     response.send('<h1>Hello World!</h1>')
 })
 
-app.get('/api/persons', (request, response) => {
-    Phonenumber.find({}).then(phonebook => {
-        response.json(phonebook)
+app.get('/persons',cors(corsOptions), async (request, response) => {
+  try{
+    await mongoose.connect(url, {
+      family: 4,
+      serverSelectionTimeoutMS: 30000
     })
+    console.log("Connected to Database");
+  }catch(err) {
+    alert('Failed to connect to Database storage. Error handle:' + err.reason)
+  }
+  Number.find({}).then(async phonebook => {
+  await mongoose.connection.close()
+  response.json(phonebook)
+  })
 })
 
-app.get('/info', (request,response) => {
+app.get('/info',cors(corsOptions), async (request,response) => {
+    try{
+      await mongoose.connect(url, {
+        family: 4,
+        serverSelectionTimeoutMS: 30000
+      })
+      console.log("Connected to Database");
+    }catch(err) {
+      alert('Failed to connect to Database storage. Error handle:' + err.reason)
+    }
+    Number.find({}).then(async phonebook => {
+    await mongoose.connection.close()
     response.send(
         `<p>Phonbook has ${phonebook.length} people<br/>
         ${new Date()}</p>`)
+    })
 })
 
 app.get('/api/persons/:id', (request, response) => {
@@ -63,13 +83,40 @@ app.get('/api/persons/:id', (request, response) => {
     })
 })
 
-app.delete('/api/persons/:id', (request, response, next) => {
-    const id = request.params.id
-    Phonenumber.findByIdAndDelete(id)
-    .then(result => {
-        response.status(204).end()
+app.options('/persons',cors(corsOptions), (request,response) => {
+  response.json(corsOptions)
+})
+
+app.options('/persons/:id', cors(corsOptions), (request,response) => {
+  response.json(corsOptions)
+})
+
+app.options('/info', cors(corsOptions), (request,response) => {
+  response.json(corsOptions)
+})
+
+app.delete('/persons/:id',cors(corsOptions), async (request, response) => {
+  const id = request.params.id
+  try{
+    await mongoose.connect(url, {
+      family: 4,
+      serverSelectionTimeoutMS: 30000
     })
-    .catch(error => next(error))
+    console.log("Connected to Database");
+  }catch(err) {
+    alert('Failed to connect to Database storage. Error handle:' + err.reason)
+  }
+  Number.findByIdAndDelete(id)
+  .then(async person => {
+    await mongoose.connection.close()
+    console.log(`Sucsessfuly deleted ${person.name}'s number.`)
+    response.status(200).end()
+  })
+  .catch(async err => {
+    await mongoose.connection.close()
+    console.log(`Failed to delete with error ${err.message}.`)
+    response.status(404).end()
+  })
 })
 
 app.put('/api/persons/:id', (request,response, next) => {
@@ -79,22 +126,31 @@ app.put('/api/persons/:id', (request,response, next) => {
     .catch(error => next(error))
 })
 
-app.post('/api/persons', (request, response) => {
-    const body = request.body
-
-    if (!body.name || !body.number) {
-        return response.status(400).json({ 
-            error: 'required content is missing' 
-        })
-    }
-
-    const phonenumber = new Phonenumber({
-        name: body.name,
-        number: body.number
+app.post('/persons', cors(corsOptions), async (request, response) => {
+  const body = request.body
+  try{
+    await mongoose.connect(url, {
+      family: 4,
+      serverSelectionTimeoutMS: 30000
     })
+    console.log("Connected to Database");
+  }catch(err) {
+    alert('Failed to connect to Database storage. Error handle:' + err.reason)
+  }
+  if (!body.name || !body.number) {
+      return response.status(400).json({ 
+          error: 'required content is missing' 
+      })
+  }
+  const person = new Number({
+      name: body.name,
+      number: body.number
+  })
     
-    phonenumber.save().then(savedResult => {response.json(savedResult)})
-    
+  person.save().then(async result => {
+  console.log(`Added ${result.name} with number ${result.number} to phonebook.`)
+  await mongoose.connection.close()
+  return response.json(person)})
 })
 
 const PORT = process.env.PORT || 3005
